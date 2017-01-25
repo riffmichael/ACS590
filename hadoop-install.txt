@@ -1,0 +1,162 @@
+#prepair linux
+
+sudo apt-get update
+sudo apt-get upgrade
+sudo apt-get install openssh-server
+
+#install hadoop
+
+wget http://apache.claz.org/hadoop/common/hadoop-2.7.3/hadoop-2.7.3.tar.gz
+tar xzf hadoop-2.7.3.tar.gz
+
+#install java
+
+cd hadoop-2.7.3
+sudo add-apt-repository ppa:webupd8team/java
+sudo apt-get update
+sudo apt-get install oracle-java7-installer
+
+#find java location
+
+#$(ls -lasht $(ls -lasht $(which javac) | awk -F '>' '{print $2}')| awk -F '>' '{print $2}' | awk -F '/' '{print $2,$3,$4,$5}' | sed 's/ /\//g' | sed 's/$/\//')
+
+#set JAVA_HOME variable
+
+export JAVA_HOME=/$(ls -lasht $(ls -lasht $(which javac) | awk -F '>' '{print $2}')| awk -F '>' '{print $2}' | awk -F '/' '{print $2,$3,$4,$5}' | sed 's/ /\//g' | sed 's/$/\//')
+
+#copy files to operate on
+
+mkdir input
+cp etc/hadoop/* input
+
+#run mapreduce
+
+bin/hadoop jar share/hadoop/mapreduce/hadoop-mapreduce-examples-2.7.3.jar grep input output 'dfs[a-z.]+'
+
+#view output
+
+cat output/*
+
+#clean output
+
+sudo rm -rf output
+
+#prepair java compilation variables
+
+export PATH=${JAVA_HOME}/bin:${PATH}
+export HADOOP_CLASSPATH=${JAVA_HOME}/lib/tools.jar
+
+
+#download wordcount
+
+wget http://www.cs.cmu.edu/~abeutel/WordCount.java
+
+#replace output of map to all uppercase
+
+sed -i 's/toString()/toString().toUpperCase()/' WordCount.java
+
+#compile java wordcount
+
+bin/hadoop com.sun.tools.javac.Main WordCount.java
+jar cf wc.jar WordCount*.class
+
+#run wordcount jar
+
+bin/hadoop jar wc.jar WordCount input output
+
+#view output
+
+cat output/*
+
+#prepair ssh keys for psudo cluster
+
+ssh-keygen -t dsa -P '' -f ~/.ssh/id_dsa
+cat ~/.ssh/id_dsa.pub >> ~/.ssh/authorized_keys
+chmod 0600 ~/.ssh/authorized_keys
+
+#set JAVA_HOME in hadoop-env.sh
+
+sed -i 's/^export JAVA_HOME=\${JAVA_HOME}$/export JAVA_HOME=\/usr\/lib\/jvm\/java-7-oracle/' ~/hadoop-2.7.3/etc/hadoop/hadoop-env.sh
+
+#set allowable hosts
+
+sed -i 's/<\/configuration>/<property><name>fs.defaultFS<\/name><value>hdfs:\/\/0.0.0.0:9000<\/value><\/property><\/configuration>/' ~/hadoop-2.7.3/etc/hadoop/core-site.xml
+#
+#<configuration>
+#    <property>
+#        <name>fs.defaultFS</name>
+#        <value>hdfs://0.0.0.0:9000</value>
+#    </property>
+#</configuration>
+
+#set allow dfs.replication
+
+sed -i 's/<\/configuration>/<property><name>dfs.replication<\/name><value>1<\/value><\/property><\/configuration>/' ~/hadoop-2.7.3/etc/hadoop/hdfs-site.xml
+
+#<configuration>
+#    <property>
+#        <name>dfs.replication</name>
+#        <value>1</value>
+#    </property>
+#</configuration>
+
+
+#comment out 127.0.1.1 in /etc/hosts
+
+sudo sed -i 's/^127.0.1.1/#127.0.0.1/' /etc/hosts
+
+#format namenode
+
+bin/hdfs namenode -format
+
+#start nodes
+
+sbin/start-dfs.sh
+
+#create hdfs user
+
+bin/hdfs dfs -mkdir /user
+bin/hdfs dfs -mkdir /user/riffms01
+
+#place /etc/passwd file for input
+
+bin/hdfs dfs -put /etc/passwd input
+
+#run psudo distributed mapreduce
+
+bin/hadoop jar wc.jar WordCount input output
+
+#display output
+
+bin/hdfs dfs -cat output/*
+
+(ADMIN):/VAR/LIB/GNATS:/USR/SBIN/NOLOGIN        1
+BACKUP:X:34:34:BACKUP:/VAR/BACKUPS:/USR/SBIN/NOLOGIN    1
+BIN:X:2:2:BIN:/BIN:/USR/SBIN/NOLOGIN    1
+BUG-REPORTING   1
+DAEMON:X:1:1:DAEMON:/USR/SBIN:/USR/SBIN/NOLOGIN 1
+GAMES:X:5:60:GAMES:/USR/GAMES:/USR/SBIN/NOLOGIN 1
+GNATS:X:41:41:GNATS     1
+IRC:X:39:39:IRCD:/VAR/RUN/IRCD:/USR/SBIN/NOLOGIN        1
+LANDSCAPE:X:103:109::/VAR/LIB/LANDSCAPE:/BIN/FALSE      1
+LIBUUID:X:100:101::/VAR/LIB/LIBUUID:    1
+LIST    1
+LIST:X:38:38:MAILING    1
+LP:X:7:7:LP:/VAR/SPOOL/LPD:/USR/SBIN/NOLOGIN    1
+MAIL:X:8:8:MAIL:/VAR/MAIL:/USR/SBIN/NOLOGIN     1
+MAN:X:6:12:MAN:/VAR/CACHE/MAN:/USR/SBIN/NOLOGIN 1
+MANAGER:/VAR/LIST:/USR/SBIN/NOLOGIN     1
+MESSAGEBUS:X:102:106::/VAR/RUN/DBUS:/BIN/FALSE  1
+NEWS:X:9:9:NEWS:/VAR/SPOOL/NEWS:/USR/SBIN/NOLOGIN       1
+NOBODY:X:65534:65534:NOBODY:/NONEXISTENT:/USR/SBIN/NOLOGIN      1
+PROXY:X:13:13:PROXY:/BIN:/USR/SBIN/NOLOGIN      1
+RIFFMS01:X:1000:1000:RIFFMS01,,,:/HOME/RIFFMS01:/BIN/BASH       1
+ROOT:X:0:0:ROOT:/ROOT:/BIN/BASH 1
+SSHD:X:104:65534::/VAR/RUN/SSHD:/USR/SBIN/NOLOGIN       1
+SYNC:X:4:65534:SYNC:/BIN:/BIN/SYNC      1
+SYS:X:3:3:SYS:/DEV:/USR/SBIN/NOLOGIN    1
+SYSLOG:X:101:104::/HOME/SYSLOG:/BIN/FALSE       1
+SYSTEM  1
+UUCP:X:10:10:UUCP:/VAR/SPOOL/UUCP:/USR/SBIN/NOLOGIN     1
+WWW-DATA:X:33:33:WWW-DATA:/VAR/WWW:/USR/SBIN/NOLOGIN    1
+riffms01@hadoop1:~/hadoop-2.7.3$
